@@ -1,7 +1,10 @@
 // panel_preview.cpp: draws the pressure panel without the game, into PNG files, with the mod's own drawing code
 // (src\panel_draw.h). Dear ImGui is compiled in (its full sources, see test\build_preview.bat) and renders on a
 // Direct3D 11 WARP device: no game, display or graphics card needed.
-//   panel_preview.exe <out dir> <font dir> [reference.png]
+//   panel_preview.exe <out dir> <font dir> [reference.png or -] [<picture> <x> <y> <scale> <mode> <name>]...
+// Each group of six after the reference draws the panel on a picture, for the mod pages: <name>.png is a 1920 x 1080
+// frame filled by the picture (cut to 16:9 around its middle), with the panel's top left corner at x, y, at <scale>
+// times its size in the game, at mode 0 to 3 (Low, Reduced, Normal, Increased), as the pad shows it.
 // Writes, in <out dir>:
 //   compare.png   the reference screenshot of Expeditions' panel (when given) next to ours at its scale, Normal
 //   states.png    pad Low / Reduced / Normal / Increased and keyboard Reduced at the 1080p size
@@ -165,7 +168,7 @@ int wmain(int argc, wchar_t **argv)
         fwprintf(stderr, L"usage: panel_preview <out dir> <font dir> [reference.png]\n");
         return 2;
     }
-    const wchar_t *out = argv[1], *fontDir = argv[2], *refPath = argc > 3 ? argv[3] : nullptr;
+    const wchar_t *out = argv[1], *fontDir = argv[2], *refPath = argc > 3 && wcscmp(argv[3], L"-") ? argv[3] : nullptr;
     CreateDirectoryW(out, nullptr);
     if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED)) ||
         FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&g_wic))))
@@ -255,6 +258,27 @@ int wmain(int argc, wchar_t **argv)
         PanelDraw(fg, fonts, ImVec2(gap, gap), u, 1.0f, (float)kReduced, states[1], modes, "F3", 2000);
     });
     fonts.tex = keep;
+
+    // the panel on pictures
+    for (int i = 4; i + 5 < argc; i += 6)
+    {
+        std::vector<uint8_t> pic;
+        UINT w = 0, h = 0;
+        ID3D11ShaderResourceView *srv = LoadImageRgba(argv[i], pic, w, h) ? MakeTexture(pic.data(), (int)w, (int)h) : nullptr;
+        if (!srv) { wprintf(L"FAILED to read %s\n", argv[i]); continue; }
+        const float x = (float)_wtof(argv[i + 1]), y = (float)_wtof(argv[i + 2]), us = u * (float)_wtof(argv[i + 3]);
+        const int mode = min(max(_wtoi(argv[i + 4]), 0), kModeCount - 1);
+        UseFonts(fonts, us);
+        // the part of the picture that fills a 16:9 frame, as texture coordinates around its middle
+        const float cut = min((float)w / 1920.0f, (float)h / 1080.0f), cw = 960.0f * cut / (float)w, ch = 540.0f * cut / (float)h;
+        const PanelView v = view(mode, 1, 1300, 4);
+        swprintf_s(path, L"%s\\%s.png", out, argv[i + 5]);
+        RenderPng(path, 1920, 1080, [&](ImDrawList *fg, ImDrawList *bg) {
+            bg->AddImage((ImTextureID)(intptr_t)srv, ImVec2(0, 0), ImVec2(1920, 1080), ImVec2(0.5f - cw, 0.5f - ch), ImVec2(0.5f + cw, 0.5f + ch));
+            PanelDraw(fg, fonts, ImVec2(x, y), us, 1.0f, (float)mode, v, modes, "F3", 2000);
+        });
+        Release(srv);
+    }
 
     // the settings page, as ReShade's overlay shows it with FontScale=2 (ReShade's own style differs)
     {
