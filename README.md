@@ -11,6 +11,8 @@ The truck you drive gets four pressure modes: Low, Reduced, Normal and Increased
 - SnowRunner on Steam, the game version of 22 July 2026. On any other version the mod writes that into its log and does nothing.
 - For the panel and the settings tab: ReShade 6.8.0 or newer, the build "with full add-on support". Without ReShade the key still changes the pressure, with beeps in place of the panel.
 
+ReShade has its own setup. On reshade.me take the download "with full add-on support", start it, pick `SnowRunner.exe` in `Sources\Bin` and then DirectX 10/11/12. No effects are needed. The mod has no ReShade file of its own to copy: `TirePressure.asi` finds ReShade when the game starts. In the game the Home key opens ReShade's overlay.
+
 ## Install
 
 1. Close the game.
