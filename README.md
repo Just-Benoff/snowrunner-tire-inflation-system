@@ -19,7 +19,7 @@ ReShade has its own setup. On reshade.me take the download "with full add-on sup
 2. Copy `version.dll` and `TirePressure.asi` into the game's `Sources\Bin` folder, next to `SnowRunner.exe`.
 3. Start the game.
 
-`version.dll` is a small loader: it loads every file in that folder whose name ends in `.asi`. If another mod already put a `version.dll` there, rename that one to `version_chain.dll` first, and this loader passes everything on to it. If you already use an ASI loader, copy only `TirePressure.asi`.
+`version.dll` is a small loader: it loads every file in that folder whose name ends in `.asi`. If you already use an ASI loader (other `.asi` mods work in that folder), copy only `TirePressure.asi` and leave your loader as it is. If another mod's `version.dll` is there and it is not an ASI loader, rename that one to `version_chain.dll` first, and this loader passes everything on to it.
 
 To update, copy the two new files over the old ones. Keep only one `.asi` file of this mod in the folder: a second copy under another name stands down and says so in the log.
 
@@ -105,7 +105,7 @@ build.bat
 test.bat
 ```
 
-`build.bat` makes `out\version.dll` and `out\TirePressure.asi`. `test.bat` runs the offline tests: the loader on a test `.asi`, the loader with a copy of itself as its chain file, and the mod's own checks (every setting through the ini and back, the flattening and gear numbers). `test\build_preview.bat` builds a program that draws the panel, the warning and the settings tab into PNG files without the game and checks the pad binding window. It needs the Dear ImGui sources, see the file.
+`build.bat` makes `out\version.dll` and `out\TirePressure.asi`. `test.bat` runs the offline tests: the loader on a test `.asi`, the loader with a copy of itself as its chain file, the loader behind another ASI loader that had the `.asi` first, and the mod's own checks (every setting through the ini and back, the flattening and gear numbers). `test\build_preview.bat` builds a program that draws the panel, the warning and the settings tab into PNG files without the game and checks the pad binding window. It needs the Dear ImGui sources, see the file.
 
 ## How it works
 

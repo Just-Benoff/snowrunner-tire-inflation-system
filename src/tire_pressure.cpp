@@ -24,6 +24,7 @@
 #include <vector>
 #include "panel.h"
 #include "vanilla_balance.h"
+#include "marker.h"
 
 static const DWORD kExeStamp = 0x6a607c05;
 static const uint64_t kControlRva = 0x2a8eb78, kWheelVtableRva = 0x2258918, kCylinderVtableRva = 0x23c2c08;

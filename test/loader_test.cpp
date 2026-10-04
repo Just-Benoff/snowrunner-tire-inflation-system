@@ -1,13 +1,18 @@
-// Offline test of out\version.dll. Built twice:
+// Offline test of out\version.dll. Built three times:
 //   loader_test.exe   imports version.dll (the proxy next to it), asks for kernel32.dll's file version through it,
 //                     then waits for the marker the test .asi writes.
 //   probe.asi         (LOADER_TEST_ASI) writes asi_marker.txt next to itself when loaded: the id of the process it
 //                     was loaded into, so a marker left by another run does not count.
+//   version_chain.dll (LOADER_TEST_CHAIN) a stand-in for another mod's version.dll that is an ASI loader itself: it
+//                     loads probe.asi before the proxy looks for it, and it has none of version.dll's exports.
 // build.bat also puts the three files into out\test\chain with a second copy of the proxy as version_chain.dll: run
-// there, the same test checks that a chain of two of these loaders ends in System32 (it once ran in a circle).
+// there, the same test checks that a chain of two of these loaders ends in System32 (it once ran in a circle). In
+// out\test\twice the chain file is the stand-in: run there with the argument "already", the test also wants the
+// proxy's log to say that it left the loaded probe.asi alone.
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <string>
 
 static std::wstring DirOf(HMODULE m)
@@ -29,8 +34,35 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID)
     }
     return TRUE;
 }
+#elif defined(LOADER_TEST_CHAIN)
+BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID)
+{
+    if (reason == DLL_PROCESS_ATTACH) LoadLibraryW((DirOf(inst) + L"probe.asi").c_str());
+    return TRUE;
+}
 #else
 struct Version { bool wide, ansi; WORD major, minor, build; };
+
+// The proxy's log of this very run (it is rewritten at each start; one left by an earlier run does not count), once
+// its last line is in it. Empty when that does not happen in 5 s.
+static std::string LoaderLog(const std::wstring &file)
+{
+    FILETIME made = {}, a, b, c;
+    GetProcessTimes(GetCurrentProcess(), &made, &a, &b, &c);
+    for (int i = 0; i < 50; i++, Sleep(100))
+    {
+        WIN32_FILE_ATTRIBUTE_DATA d = {};
+        if (!GetFileAttributesExW(file.c_str(), GetFileExInfoStandard, &d) || CompareFileTime(&d.ftLastWriteTime, &made) < 0) continue;
+        std::string text;
+        FILE *f = nullptr;
+        if (_wfopen_s(&f, file.c_str(), L"rb") != 0 || !f) continue;
+        char part[512];
+        for (size_t n; (n = fread(part, 1, sizeof part, f)) > 0;) text.append(part, n);
+        fclose(f);
+        if (text.find("done:") != std::string::npos) return text;
+    }
+    return std::string();
+}
 
 // The four exports the game itself imports, through the proxy.
 static DWORD WINAPI AskVersion(void *out)
@@ -51,7 +83,7 @@ static DWORD WINAPI AskVersion(void *out)
     return 0;
 }
 
-int main()
+int main(int argc, char **argv)
 {
     int fails = 0;
     const std::wstring dir = DirOf(nullptr);
@@ -94,6 +126,17 @@ int main()
 
     const bool chain = GetModuleHandleW(L"version_chain.dll") != nullptr;
     printf("     chain file: %s\n", chain ? "version_chain.dll is loaded, the calls went through it" : "none");
+
+    if (argc > 1 && !strcmp(argv[1], "already"))
+    {
+        // the chain file is the stand-in loader here and had probe.asi first
+        const std::string log = LoaderLog(dir + L"AsiLoader.log");
+        const bool left = chain && log.find("already loaded by another loader: probe.asi") != std::string::npos &&
+                          log.find("loaded probe.asi at") == std::string::npos;
+        printf("%s the proxy left probe.asi alone, which the other loader had loaded%s\n", left ? "ok  " : "FAIL",
+               log.empty() ? " (no log of this run)" : "");
+        fails += !left;
+    }
 
     printf(fails ? "%d FAILED\n" : "ALL PASS\n", fails);
     return fails;

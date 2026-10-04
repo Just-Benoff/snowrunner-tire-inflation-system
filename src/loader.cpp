@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string>
 #include "version_names.h"
+#include "marker.h"
 
 extern "C" void *g_verReal[64] = {};
 
@@ -83,7 +84,7 @@ static DWORD WINAPI LoadAsiFiles(void *)
     Log(L"version.dll calls go to %s", g_forwards.c_str());
     WIN32_FIND_DATAW fd = {};
     const HANDLE h = FindFirstFileW((g_dir + L"*.asi").c_str(), &fd);
-    int loaded = 0, failed = 0;
+    int loaded = 0, already = 0, failed = 0;
     if (h != INVALID_HANDLE_VALUE)
     {
         do
@@ -93,13 +94,18 @@ static DWORD WINAPI LoadAsiFiles(void *)
             // off by renaming), through their short names: only what ends in .asi is loaded
             const size_t len = wcslen(fd.cFileName);
             if (len < 5 || _wcsicmp(fd.cFileName + len - 4, L".asi")) { Log(L"left alone: %s (does not end in .asi)", fd.cFileName); continue; }
-            const HMODULE m = LoadLibraryW((g_dir + fd.cFileName).c_str());
+            const std::wstring file = g_dir + fd.cFileName;
+            // another ASI loader in the same game (the chain file can be one) may have been first. Windows would hand
+            // back the same module and not start it a second time; left alone, the log says who loaded what
+            if (GetModuleHandleW(file.c_str())) { already++; Log(L"already loaded by another loader: %s", fd.cFileName); continue; }
+            const HMODULE m = LoadLibraryW(file.c_str());
             if (m) { loaded++; Log(L"loaded %s at %p", fd.cFileName, (void *)m); }
             else { failed++; Log(L"FAILED %s, error %lu", fd.cFileName, GetLastError()); }
         } while (FindNextFileW(h, &fd));
         FindClose(h);
     }
-    Log(L"done: %d loaded, %d failed", loaded, failed);
+    if (already) Log(L"done: %d loaded, %d loaded by another loader, %d failed", loaded, already, failed);
+    else Log(L"done: %d loaded, %d failed", loaded, failed);
     return 0;
 }
 
