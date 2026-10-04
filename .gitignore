@@ -1,0 +1,23 @@
+# build outputs; the release zip goes to GitHub Releases
+out/
+*.exe
+*.obj
+
+# release drafts, page texts and working notes: local only
+release/
+HANDOFF.md
+design/
+.claude/
+
+# test harnesses and tools that drive one machine's game install: local only
+test/game_test.ps1
+test/probe_run.ps1
+test/panel_test.ps1
+test/damage_test.ps1
+tools/readers.ps1
+tools/xref.js
+tools/pdata_check.js
+tools/callers.js
+
+# Dear ImGui sources for the offline preview (see test/build_preview.bat)
+deps/imgui_src/
