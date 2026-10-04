@@ -4,7 +4,7 @@
 #pragma once
 #include <windows.h>
 #include <xinput.h>
-#define TP_VERSION "1.0.0"
+#define TP_VERSION "1.0.1"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -102,12 +102,13 @@ inline void SettingsDefaults(TpSettings &s)
     // By ground: a soft tire gains most on sand (it floats), as much on rock as on dirt (it wraps), least on gravel
     // (a loose layer over a hard one); a hard tire loses in the same order.
     // Damage at speed: the TickDamageParams of Expeditions' off-road tires (its _templates\trucks.xml: Low 2 to 4 from
-    // 27 to 36 km/h, Reduced 1 to 3 from 36 to 54 km/h) with twice the damage at lower speeds (2026-10-04, set by
-    // driving: a SnowRunner truck is slower off the road and its tires hardly wore). In metres per second: Low from
-    // 15 to 25 km/h, Reduced from 25 to 35 km/h. A SnowRunner wheel takes about 50 damage.
+    // 27 to 36 km/h, Reduced 1 to 3 from 36 to 54 km/h) with twice the damage at lower speeds (set by driving on
+    // 2026-10-04: a SnowRunner truck is slower off the road and its tires hardly wore). In metres per second: Low from
+    // 20 to 30 km/h, Reduced from 35 to 45 km/h (1.0.0 had 15 to 25 and 25 to 35, which more driving found too low).
+    // A SnowRunner wheel takes about 50 damage.
     static const float modes[3][kModeKeyCount] = {
-        { 3.0f, 0.95f, 1.15f, 0.06f, 1.25f, 0.85f, 2.4f, 3.4f, 3.0f, 25.0f / 3.6f, 35.0f / 3.6f, 2.0f, 6.0f, 10.0f },
-        { 3.5f, 0.85f, 1.3f, 0.10f, 1.5f, 0.7f, 2.75f, 4.0f, 3.5f, 15.0f / 3.6f, 25.0f / 3.6f, 4.0f, 8.0f, 7.0f },
+        { 3.0f, 0.95f, 1.15f, 0.06f, 1.25f, 0.85f, 2.4f, 3.4f, 3.0f, 35.0f / 3.6f, 45.0f / 3.6f, 2.0f, 6.0f, 10.0f },
+        { 3.5f, 0.85f, 1.3f, 0.10f, 1.5f, 0.7f, 2.75f, 4.0f, 3.5f, 20.0f / 3.6f, 30.0f / 3.6f, 4.0f, 8.0f, 7.0f },
         { 0.9f, 1.3f, 0.85f, 0.0f, 0.85f, 1.1f, 0.95f, 0.85f, 0.9f, 0.0f, 0.0f, 0.0f, 0.0f, 7.0f } };
     memcpy(s.mode, modes, sizeof modes);
 }

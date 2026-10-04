@@ -63,8 +63,8 @@ Soft tires wear when the truck is too fast for them:
 
 | | Low | Reduced |
 |---|---|---|
-| Wear starts above | 15 km/h | 25 km/h |
-| Most wear from | 25 km/h | 35 km/h |
+| Wear starts above | 20 km/h | 35 km/h |
+| Most wear from | 30 km/h | 45 km/h |
 | Damage per wheel | 4 to 8 | 2 to 6 |
 | Every | 7 seconds | 10 seconds |
 
