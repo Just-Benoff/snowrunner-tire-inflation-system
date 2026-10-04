@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.0]
+## [1.0.0] 2026-10-04
 
 - Four tire pressure modes for the truck being driven: Low, Reduced, Normal and Increased. A mode scales the grip by the ground under each wheel (dirt, gravel, sand, rock, asphalt, mud), the tire's radius, fuel use while moving and steering speed.
 - A tire flattens as far as the game can draw it, and the truck then rolls as much slower as a real flattened tire would.
