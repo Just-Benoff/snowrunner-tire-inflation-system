@@ -26,20 +26,12 @@
 #include "panel.h"
 #include "vanilla_balance.h"
 #include "marker.h"
+#include "build_find.h"
 
-// What the mod has to know about one build of SnowRunner.exe: where a few things lie in it (RVAs). tools\find_build.js
-// finds a row from an exe. stamp: the exe's link time, by which a build is known. image: its size in memory. control:
-// the truck control global. wheelVtable, cylinderVtable: the classes of a wheel's parameter object and of its
-// collision cylinder. damageUpdate: the game's damage update. foregroundSlot: the exe's import slot of
-// GetForegroundWindow. truckUpdateReturn: where the truck update's call through that slot returns to. firstArgument:
-// from the place of that call's return address on the stack up to the truck update's saved first argument.
-// A build goes into the list only when the positions inside the game's own objects (vehicle+0x200 and the like, all
-// through this file) are the same in it as in the others.
-struct Build { DWORD stamp; uint32_t image; uint64_t control, wheelVtable, cylinderVtable, damageUpdate, foregroundSlot, truckUpdateReturn, firstArgument; const wchar_t *name; };
-static const Build kBuilds[] = {
-    { 0x6a607c05, 0x2e02000, 0x2a8eb78, 0x2258918, 0x23c2c08, 0xd6f690, 0x21be360, 0xa57535, 0x418, L"Steam, 22 July 2026" },
-};
-static const Build *g_build = &kBuilds[0]; // the build the running exe is: Run picks it, or the mod stands down
+// Where the few places lie that are elsewhere in every build of the game's exe (build_find.h has what each is). Run
+// looks for them in the running exe at the start and stands down when it does not find every one.
+static Build g_buildFound = {};
+static const Build *const g_build = &g_buildFound;
 
 // body: the grip on plain ground (dirt, and what is none of the others); gravel, sand, rock: the same where the ground
 // is that.
@@ -1176,6 +1168,25 @@ static bool GameInFront()
     return pid == GetCurrentProcessId();
 }
 
+// A copy of the running exe's image, for the look through the game's code. Read like everything else here, so a page
+// that cannot be read stays zero in the copy and nothing faults.
+static bool CopyOwnImage(std::vector<uint8_t> &out)
+{
+    DWORD header = 0, size = 0;
+    if (!Read(g_base + 0x3C, header) || !Read(g_base + header + 24 + 56, size) || size < 0x10000 || size > 0x20000000) return false;
+    out.assign(size, 0);
+    const HANDLE self = GetCurrentProcess();
+    for (size_t o = 0; o < size; o += 0x10000)
+    {
+        const size_t chunk = min((size_t)0x10000, (size_t)size - o);
+        SIZE_T got = 0;
+        if (ReadProcessMemory(self, (const void *)(g_base + o), out.data() + o, chunk, &got) && got == chunk) continue;
+        for (size_t page = o; page < o + chunk; page += 0x1000)
+            ReadProcessMemory(self, (const void *)(g_base + page), out.data() + page, min((size_t)0x1000, (size_t)size - page), &got);
+    }
+    return true;
+}
+
 static DWORD WINAPI Run(void *)
 {
     // One copy of the mod per game: the loader loads every .asi in the folder, and a second file of this mod (a copy
@@ -1193,23 +1204,31 @@ static DWORD WINAPI Run(void *)
         return 0;
     }
     const BYTE *image = (const BYTE *)g_base;
-    const BYTE *header = image + *(const DWORD *)(image + 0x3C);
-    const DWORD stamp = *(const DWORD *)(header + 8), imageSize = *(const DWORD *)(header + 24 + 56);
+    const DWORD stamp = *(const DWORD *)(image + *(const DWORD *)(image + 0x3C) + 8);
     Log(L"TirePressure " TP_VERSION L": exe stamp %08lx", stamp);
-    // only on an exe this mod knows: its addresses are those of that very build
-    const Build *build = nullptr;
-    for (const Build &b : kBuilds) if (b.stamp == stamp && b.image == imageSize) build = &b;
-    if (!build)
-    {
-        std::wstring known;
-        for (const Build &b : kBuilds) known += (known.empty() ? L"" : L"; ") + std::wstring(b.name);
-        Log(L"another game version: standing down. This mod knows: %s.", known.c_str());
-        return 0;
-    }
-    g_build = build;
-    Log(L"game build: %s", g_build->name);
     SettingsDefaults(g_set); // what the settings page shows until the ini is read
     g_reshadeOk = PanelInit(g_self);
+    // The mod's places in the exe, looked for by what the game's code is like around them (build_find.h), so it needs
+    // no list of builds. Steam's exe only makes its code readable as it starts, so the first looks can come too early:
+    // they are repeated for a minute. Without every place and every check after that, this is a game version the mod
+    // cannot work on: it stands down and has changed nothing.
+    std::wstring missing;
+    bool found = false;
+    int looks = 0;
+    for (; looks < 120 && !found; looks++)
+    {
+        if (looks) Sleep(500);
+        std::vector<uint8_t> copy;
+        found = CopyOwnImage(copy) && BuildFindAll({ copy.data(), copy.size(), g_base }, g_buildFound, missing);
+    }
+    if (!found)
+    {
+        Log(L"this game version is not one the mod can work on: standing down. Not as the mod needs it: %s", missing.c_str());
+        InterlockedExchange(&g_modOff, 1);
+        return 0;
+    }
+    Log(L"game code found at look %d: control %llx, wheel class %llx, cylinder class %llx, damage update %llx, foreground slot %llx, truck update return %llx, first argument +%llx",
+        looks, g_build->control, g_build->wheelVtable, g_build->cylinderVtable, g_build->damageUpdate, g_build->foregroundSlot, g_build->truckUpdateReturn, g_build->firstArgument);
     LoadIni();
     g_now = g_modes[g_mode]; // with a base grip, Normal is not the stock values: the first wheels get it straight away
     Log(L"panel: %s", g_ui ? L"drawn through ReShade's overlay" : g_uiWanted ? L"ReShade not found: the key cycles the modes directly" : L"off (UI=0): the key cycles the modes directly");
@@ -1850,14 +1869,73 @@ static bool FlattenTest()
     return limits && shared && fits && rolls;
 }
 
+// An exe from a file, as the loader lays it out: a copy of the image from a running game is that already (file offset
+// = RVA), an exe as it lies on disk gets its sections put in place. base: what its stored pointers are relative to.
+static bool LoadImageFile(const wchar_t *file, std::vector<uint8_t> &image, uint64_t &base)
+{
+    FILE *f = nullptr;
+    if (_wfopen_s(&f, file, L"rb") != 0 || !f) return false;
+    std::vector<uint8_t> raw;
+    static uint8_t part[1 << 16];
+    for (size_t n; (n = fread(part, 1, sizeof part, f)) > 0;) raw.insert(raw.end(), part, part + n);
+    fclose(f);
+    const BuildImage r = { raw.data(), raw.size(), 0 };
+    if (raw.size() < 0x1000 || r.u16(0) != 0x5A4D) return false;
+    base = r.u64(r.optional() + 24);
+    const size_t size = r.u32(r.optional() + 56);
+    if (raw.size() >= size) { image.swap(raw); return true; }
+    image.assign(size, 0);
+    memcpy(image.data(), raw.data(), min((size_t)r.u32(r.optional() + 60), raw.size()));
+    const size_t sections = r.u16(r.header() + 6), first = r.optional() + r.u16(r.header() + 20);
+    for (size_t s = 0; s < sections; s++)
+    {
+        const size_t h = first + s * 40, va = r.u32(h + 12), at = r.u32(h + 20);
+        const size_t inFile = r.u32(h + 16), inMemory = r.u32(h + 8) ? r.u32(h + 8) : inFile;
+        if (!at || at >= raw.size() || va >= size) continue;
+        memcpy(image.data() + va, raw.data() + at, min(min(inFile, inMemory), min(raw.size() - at, size - va)));
+    }
+    return true;
+}
+
+// The look through the game's code (build_find.h) on an exe in a file. Steam's build of 22 July 2026, on which the mod
+// was made, has to give the numbers it was made with. Steam's exe as it lies on disk will not do: its code is only
+// readable in the running game. No file named: nothing to test here, as the game's exe is no part of this project.
+static bool BuildTest(const wchar_t *file)
+{
+    if (!file || !*file) { printf("     game code: no image of the game's exe to look through (SR_IMAGE names one): not tested\n"); return true; }
+    std::vector<uint8_t> image;
+    uint64_t base = 0;
+    if (!LoadImageFile(file, image, base)) { printf("FAIL game code: %ls could not be read as an exe\n", file); return false; }
+    Build b;
+    std::wstring missing;
+    const bool found = BuildFindAll({ image.data(), image.size(), base }, b, missing);
+    static const Build kSteam = { 0x6a607c05, 0x2e02000, 0x2a8eb78, 0x2258918, 0x23c2c08, 0xd6f690, 0x21be360, 0xa57535, 0x418 };
+    const bool known = b.stamp == kSteam.stamp;
+    const bool same = b.image == kSteam.image && b.control == kSteam.control && b.wheelVtable == kSteam.wheelVtable && b.cylinderVtable == kSteam.cylinderVtable &&
+                      b.damageUpdate == kSteam.damageUpdate && b.foregroundSlot == kSteam.foregroundSlot && b.truckUpdateReturn == kSteam.truckUpdateReturn &&
+                      b.firstArgument == kSteam.firstArgument;
+    const bool ok = found && (!known || same);
+    printf("%s game code in %ls (build stamp %08x, image %x): control %llx, wheel class %llx, cylinder class %llx, damage update %llx, foreground slot %llx, "
+           "truck update return %llx, first argument +%llx%s\n", ok ? "ok  " : "FAIL", file, b.stamp, b.image, b.control, b.wheelVtable, b.cylinderVtable, b.damageUpdate,
+           b.foregroundSlot, b.truckUpdateReturn, b.firstArgument,
+           !found ? "" : !known ? ": a build the test has no numbers for" : same ? ": as the mod was made with" : ": NOT the numbers the mod was made with");
+    if (!found) printf("     not as the mod needs it: %ls\n", missing.c_str());
+    return ok;
+}
+
 int wmain(int argc, wchar_t **argv)
 {
+    // "probe_test find <exe or image>": only the look through that exe
+    if (argc > 2 && !wcscmp(argv[1], L"find")) return BuildTest(argv[2]) ? 0 : 1;
     wchar_t path[MAX_PATH] = {};
     GetModuleFileNameW(nullptr, path, MAX_PATH);
     g_dir.assign(path, wcsrchr(path, L'\\') + 1 - path);
     g_base = (uint64_t)GetModuleHandleW(nullptr);
     if (!IniTest(argc > 1 ? argv[1] : nullptr)) return 1;
     if (!FlattenTest()) return 1;
+    wchar_t imageFile[1024] = {};
+    GetEnvironmentVariableW(L"SR_IMAGE", imageFile, 1024);
+    if (!BuildTest(imageFile)) return 1;
     volatile LONG stop = 0;
     const HANDLE t = CreateThread(nullptr, 0, TestWriter, (void *)&stop, 0, nullptr);
     Sleep(100);

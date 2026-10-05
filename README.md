@@ -8,7 +8,7 @@ The truck you drive gets four pressure modes: Low, Reduced, Normal and Increased
 
 ## What you need
 
-- SnowRunner on Steam, the game version of 22 July 2026. On any other version the mod writes that into its log and does nothing.
+- SnowRunner for Windows. The mod was made on the Steam version (the game build of 22 July 2026). At every start it looks for the places it needs in the game's code. Where it does not find every one of them, on another build of the game, it writes that into its log and does nothing. The Epic Games Store version has not been tested.
 - For the panel and the settings tab: ReShade 6.8.0 or newer, the build "with full add-on support". Without ReShade the key still changes the pressure, with beeps in place of the panel.
 
 ReShade has its own setup. On reshade.me take the download "with full add-on support", start it, pick `SnowRunner.exe` in `Sources\Bin` and then DirectX 10/11/12. No effects are needed. The mod has no ReShade file of its own to copy: `TirePressure.asi` finds ReShade when the game starts. In the game the Home key opens ReShade's overlay.
@@ -93,7 +93,7 @@ Delete `TirePressure.asi`, `TirePressure.ini`, `TirePressure.log`, `version.dll`
 - Trailers keep their tires as they are.
 - The pad's panel buttons are taken from the game only while you drive a truck. In menus they are the game's.
 - Co-op has not been tested.
-- After a game update the mod does nothing until a version for the new game is out.
+- After a game update the mod keeps working when the game's code around its places is unchanged. When it is not, the mod does nothing and says so in its log, until a version for the new game is out.
 - If something does not work, `TirePressure.log` in `Sources\Bin` says what the mod found and did.
 
 ## Build
@@ -107,11 +107,13 @@ test.bat
 
 `build.bat` makes `out\version.dll` and `out\TirePressure.asi`. `test.bat` runs the offline tests: the loader on a test `.asi`, the loader with a copy of itself as its chain file, the loader behind another ASI loader that had the `.asi` first, and the mod's own checks (every setting through the ini and back, the flattening and gear numbers). `test\build_preview.bat` builds a program that draws the panel, the warning and the settings tab into PNG files without the game and checks the pad binding window. It needs the Dear ImGui sources, see the file.
 
-The mod runs only on the builds of the game's exe that it knows, as a few of its addresses differ from build to build. They are in the table `kBuilds` in `src\tire_pressure.cpp`. `node tools\find_build.js <exe>` finds them in an exe and prints the row, or says what it did not find.
+A few places the mod needs lie elsewhere in every build of the game's exe. It finds them itself (`src\build_find.h`). `out\test\probe_test.exe find <exe>` runs the same search on an exe in a file and prints what it found and what it did not. Steam's exe on disk will not do for that, as its code is only readable in the running game. With `SR_IMAGE` set to a copy of the exe's image from a running game, `test.bat` checks the search against the numbers of the Steam build.
 
 ## How it works
 
 A thread in the game process reads and writes the game's own values 20 times a second, through `ReadProcessMemory` and `WriteProcessMemory` on its own process, so an object the game frees under it gives an error and no crash. No game code is patched. Three of the game's pointers are pointed at the mod: its two pointers to `XInputGetState` and one entry of its import table.
+
+At its start the mod looks through the exe for the places it needs: two of the game's classes by their names, the game's damage update, the truck update's call into Windows and the global that leads to the driven truck. It also checks six spots of game code that use the same positions inside the game's objects as the mod does. Every one has to be there exactly once. If not, the mod stands down and has changed nothing.
 
 - Grip: the asphalt and mud grip of each wheel, and the truck's list of ground grip values, one per wheel. The game marks each wheel every frame with the kind of ground under it (gravel, sand, hard, paved), and the mod picks the factor from that.
 - Flattening: the radius of the wheel's collision cylinder, held to what the game's wheel shader can draw flat.

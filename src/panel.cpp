@@ -32,6 +32,7 @@ float g_panelScale = 1.0f;
 char g_panelKeyName[16] = "F3";
 int g_panelConfirmMs = 2000;
 volatile LONG g_pageCapturing = 0; // GetTickCount() of the last page frame that waited for pad buttons, 0 = none
+volatile LONG g_modOff = 0;
 
 // The game's font as a texture on ReShade's device: baked for the screen's scale the first time the panel shows,
 // again when the scale changes, freed with the device.
@@ -104,6 +105,7 @@ static void OnDestroyDevice(reshade::api::device *device)
 static void OnOverlay(reshade::api::effect_runtime *runtime)
 {
     static float alpha = 0.0f, needle = 0.0f, warn = 0.0f;
+    if (g_modOff) return;
     g_overlayThread = (LONG)GetCurrentThreadId();
     ImGuiIO &io = ImGui::GetIO();
     const float u = PanelUnit(io.DisplaySize.x, io.DisplaySize.y, g_panelScale);
@@ -126,6 +128,11 @@ static void OnOverlay(reshade::api::effect_runtime *runtime)
 // The Tire Inflation System tab: the page edits a copy of the settings in force and hands it back when something changed.
 static void OnSettingsPage(reshade::api::effect_runtime *)
 {
+    if (g_modOff)
+    {
+        ImGui::TextWrapped("The mod cannot work on this version of the game and is not running. TirePressure.log in the game folder says what it did not find.");
+        return;
+    }
     static PageState st;
     TpSettings s;
     TpLive live;

@@ -34,6 +34,7 @@ extern float g_panelScale;        // ini UIScale
 extern char g_panelKeyName[16];   // the keyboard key that opens and steps the panel, as text ("F3")
 extern int g_panelConfirmMs;      // ini ConfirmSeconds in ms: the time the choice takes to confirm itself
 extern volatile LONG g_pageCapturing; // 1 while the settings page waits for pad buttons: the mod ignores the pad then
+extern volatile LONG g_modOff;        // 1 = the mod stood down (a game version it cannot work on): the page says so
 extern volatile LONG g_padThread, g_padThreadChanges, g_overlayThread; // thread ids, for the log (0 = not seen yet)
 
 bool PanelInit(HMODULE self);     // registers with ReShade (panel + settings page); false = no ReShade
