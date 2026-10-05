@@ -2,7 +2,7 @@
 
 ## ReShade add-on API
 
-`deps/reshade/include` holds the add-on API headers of ReShade 6.8.0 (https://github.com/crosire/reshade), distributed under the BSD 3-Clause License:
+`deps/reshade/include` holds the add-on API headers of ReShade 6.8.0 (https://github.com/crosire/reshade). The release zip also carries ReShade 6.8.0 itself in its `ReShade` folder: `ReShade64.dll` of the build with full add-on support from https://reshade.me, unchanged, under the name `dxgi.dll`. Both are distributed under the BSD 3-Clause License:
 
 Copyright 2014 Patrick Mours. All rights reserved.
 

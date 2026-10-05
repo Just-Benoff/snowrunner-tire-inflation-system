@@ -9,15 +9,16 @@ The truck you drive gets four pressure modes: Low, Reduced, Normal and Increased
 ## What you need
 
 - SnowRunner for Windows. The mod was made on the Steam version (the game build of 22 July 2026). At every start it looks for the places it needs in the game's code. Where it does not find every one of them, on another build of the game, it writes that into its log and does nothing. The Epic Games Store version has not been tested.
-- For the panel and the settings tab: ReShade 6.8.0 or newer, the build "with full add-on support". Without ReShade the key still changes the pressure, with beeps in place of the panel.
-
-ReShade has its own setup. On reshade.me take the download "with full add-on support", start it, pick `SnowRunner.exe` in `Sources\Bin` and then DirectX 10/11/12. No effects are needed. The mod has no ReShade file of its own to copy: `TirePressure.asi` finds ReShade when the game starts. In the game the Home key opens ReShade's overlay.
+- For the panel and the settings tab: ReShade 6.8.0 or newer, the build "with full add-on support". The zip brings it along. Without ReShade the key still changes the pressure, with beeps in place of the panel.
 
 ## Install
 
 1. Close the game.
 2. Copy `version.dll` and `TirePressure.asi` into the game's `Sources\Bin` folder, next to `SnowRunner.exe`.
-3. Start the game.
+3. No ReShade in the game yet? Copy `dxgi.dll` and `ReShade.ini` from the zip's `ReShade` folder there too.
+4. Start the game. The Home key opens ReShade's overlay.
+
+The `ReShade` folder holds ReShade 6.8.0 with full add-on support as reshade.me offers it, unchanged, and a `ReShade.ini` that only skips its first-start tutorial. If ReShade is already in the game, or another mod's `dxgi.dll`, leave those as they are: any ReShade from 6.8.0 on with add-on support will do. `TirePressure.asi` finds ReShade when the game starts.
 
 `version.dll` is a small loader: it loads every file in that folder whose name ends in `.asi`. If you already use an ASI loader (other `.asi` mods work in that folder), copy only `TirePressure.asi` and leave your loader as it is. If another mod's `version.dll` is there and it is not an ASI loader, rename that one to `version_chain.dll` first, and this loader passes everything on to it.
 
@@ -85,7 +86,7 @@ Changes count at once and are saved to `TirePressure.ini` in the same folder. Wi
 
 ## Remove
 
-Delete `TirePressure.asi`, `TirePressure.ini`, `TirePressure.log`, `version.dll` and `AsiLoader.log` from `Sources\Bin`. If you renamed another mod's `version.dll` to `version_chain.dll`, rename it back.
+Delete `TirePressure.asi`, `TirePressure.ini`, `TirePressure.log`, `version.dll` and `AsiLoader.log` from `Sources\Bin`. If you renamed another mod's `version.dll` to `version_chain.dll`, rename it back. If you took ReShade from the zip and want it gone too, delete `dxgi.dll`, `ReShade.ini` and `ReShade.log`.
 
 ## Notes
 
