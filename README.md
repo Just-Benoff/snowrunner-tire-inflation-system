@@ -107,6 +107,8 @@ test.bat
 
 `build.bat` makes `out\version.dll` and `out\TirePressure.asi`. `test.bat` runs the offline tests: the loader on a test `.asi`, the loader with a copy of itself as its chain file, the loader behind another ASI loader that had the `.asi` first, and the mod's own checks (every setting through the ini and back, the flattening and gear numbers). `test\build_preview.bat` builds a program that draws the panel, the warning and the settings tab into PNG files without the game and checks the pad binding window. It needs the Dear ImGui sources, see the file.
 
+The mod runs only on the builds of the game's exe that it knows, as a few of its addresses differ from build to build. They are in the table `kBuilds` in `src\tire_pressure.cpp`. `node tools\find_build.js <exe>` finds them in an exe and prints the row, or says what it did not find.
+
 ## How it works
 
 A thread in the game process reads and writes the game's own values 20 times a second, through `ReadProcessMemory` and `WriteProcessMemory` on its own process, so an object the game frees under it gives an error and no crash. No game code is patched. Three of the game's pointers are pointed at the mod: its two pointers to `XInputGetState` and one entry of its import table.

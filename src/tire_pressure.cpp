@@ -3,7 +3,8 @@
 // under each wheel, shrinks the wheel's collision cylinder (the game's own soft tire rendering then draws the
 // flattening), scales fuel use and steering speed, and soft tires driven too fast take damage.
 //
-// Where the values live (exe stamp 0x6a607c05, found on the running game 2026-10-02):
+// Where the values live (found on the running game 2026-10-02; the RVAs are the Steam build's, kBuilds has each
+// build's own):
 //   truck control global at RVA 0x2a8eb78; the driven vehicle at control+8
 //   vehicle+0x200 / +0x208 -> begin / end of its array of wheel model pointers; wheel model+0x2C8 -> wheel object
 //   wheel object (vtable RVA 0x2258918): +0x18 Havok body, +0x94 radius, +0xA0 SubstanceFriction, +0xA4 BodyFrictionAsphalt
@@ -26,8 +27,19 @@
 #include "vanilla_balance.h"
 #include "marker.h"
 
-static const DWORD kExeStamp = 0x6a607c05;
-static const uint64_t kControlRva = 0x2a8eb78, kWheelVtableRva = 0x2258918, kCylinderVtableRva = 0x23c2c08;
+// What the mod has to know about one build of SnowRunner.exe: where a few things lie in it (RVAs). tools\find_build.js
+// finds a row from an exe. stamp: the exe's link time, by which a build is known. image: its size in memory. control:
+// the truck control global. wheelVtable, cylinderVtable: the classes of a wheel's parameter object and of its
+// collision cylinder. damageUpdate: the game's damage update. foregroundSlot: the exe's import slot of
+// GetForegroundWindow. truckUpdateReturn: where the truck update's call through that slot returns to. firstArgument:
+// from the place of that call's return address on the stack up to the truck update's saved first argument.
+// A build goes into the list only when the positions inside the game's own objects (vehicle+0x200 and the like, all
+// through this file) are the same in it as in the others.
+struct Build { DWORD stamp; uint32_t image; uint64_t control, wheelVtable, cylinderVtable, damageUpdate, foregroundSlot, truckUpdateReturn, firstArgument; const wchar_t *name; };
+static const Build kBuilds[] = {
+    { 0x6a607c05, 0x2e02000, 0x2a8eb78, 0x2258918, 0x23c2c08, 0xd6f690, 0x21be360, 0xa57535, 0x418, L"Steam, 22 July 2026" },
+};
+static const Build *g_build = &kBuilds[0]; // the build the running exe is: Run picks it, or the mod stands down
 
 // body: the grip on plain ground (dirt, and what is none of the others); gravel, sand, rock: the same where the ground
 // is that.
@@ -375,7 +387,7 @@ static std::vector<WheelRef> CurrentWheels(uint64_t *of = nullptr)
     std::vector<WheelRef> out;
     uint64_t control = 0, vehicle = 0, arr = 0, end = 0;
     if (of) *of = 0;
-    if (!Read(g_base + kControlRva, control) || !Read(control + 8, vehicle) || !Read(vehicle + 0x200, arr) || !Read(vehicle + 0x208, end)) return out;
+    if (!Read(g_base + g_build->control, control) || !Read(control + 8, vehicle) || !Read(vehicle + 0x200, arr) || !Read(vehicle + 0x208, end)) return out;
     if (of) *of = vehicle;
     const uint64_t count = end > arr && end - arr <= 64 * 8 ? (end - arr) / 8 : 0;
     for (uint64_t i = 0; i < count; i++)
@@ -383,8 +395,8 @@ static std::vector<WheelRef> CurrentWheels(uint64_t *of = nullptr)
         uint64_t vt = 0;
         WheelRef w = {};
         w.index = (int)i;
-        if (!Read(arr + i * 8, w.model) || !Read(w.model + 0x2C8, w.wheel) || !Read(w.wheel, vt) || vt != g_base + kWheelVtableRva) continue;
-        if (!Read(w.wheel + 0x18, w.body) || !Read(w.body + 0x20, w.shape) || !Read(w.shape, vt) || vt != g_base + kCylinderVtableRva) continue;
+        if (!Read(arr + i * 8, w.model) || !Read(w.model + 0x2C8, w.wheel) || !Read(w.wheel, vt) || vt != g_base + g_build->wheelVtable) continue;
+        if (!Read(w.wheel + 0x18, w.body) || !Read(w.body + 0x20, w.shape) || !Read(w.shape, vt) || vt != g_base + g_build->cylinderVtable) continue;
         out.push_back(w);
     }
     return out;
@@ -394,7 +406,7 @@ static std::vector<WheelRef> CurrentWheels(uint64_t *of = nullptr)
 static uint64_t CurrentVehicle()
 {
     uint64_t control = 0, vehicle = 0;
-    return Read(g_base + kControlRva, control) && Read(control + 8, vehicle) ? vehicle : 0;
+    return Read(g_base + g_build->control, control) && Read(control + 8, vehicle) ? vehicle : 0;
 }
 
 // Whether a wheel found earlier in the pass is still that wheel: asked just before writing to it, as a successful
@@ -402,11 +414,11 @@ static uint64_t CurrentVehicle()
 static bool StillThere(const WheelRef &w)
 {
     uint64_t vt = 0, wheel = 0, body = 0, shape = 0;
-    return Read(w.model + 0x2C8, wheel) && wheel == w.wheel && Read(w.wheel, vt) && vt == g_base + kWheelVtableRva && Read(w.wheel + 0x18, body) &&
-           body == w.body && Read(w.body + 0x20, shape) && shape == w.shape && Read(w.shape, vt) && vt == g_base + kCylinderVtableRva;
+    return Read(w.model + 0x2C8, wheel) && wheel == w.wheel && Read(w.wheel, vt) && vt == g_base + g_build->wheelVtable && Read(w.wheel + 0x18, body) &&
+           body == w.body && Read(w.body + 0x20, shape) && shape == w.shape && Read(w.shape, vt) && vt == g_base + g_build->cylinderVtable;
 }
 
-static bool IsWheel(uint64_t p) { uint64_t vt = 0; return Read(p, vt) && vt == g_base + kWheelVtableRva; }
+static bool IsWheel(uint64_t p) { uint64_t vt = 0; return Read(p, vt) && vt == g_base + g_build->wheelVtable; }
 static bool IsWheelModel(uint64_t p) { uint64_t w = 0; return Read(p + 0x2C8, w) && IsWheel(w); }
 
 // For the log when the chain above finds no wheels: every way from root to a wheel object within two pointer steps
@@ -438,7 +450,7 @@ static void SearchWheels(const wchar_t *name, uint64_t root, int &hits)
 static void Diagnose()
 {
     uint64_t control = 0, vehicle = 0;
-    Read(g_base + kControlRva, control);
+    Read(g_base + g_build->control, control);
     Read(control + 8, vehicle);
     uint64_t arr = 0, end = 0;
     Read(vehicle + 0x200, arr);
@@ -447,7 +459,7 @@ static void Diagnose()
     for (int i = -4; i <= 4; i++)
     {
         uint64_t v = 0;
-        Read(g_base + kControlRva + i * 8, v);
+        Read(g_base + g_build->control + i * 8, v);
         Log(L"  global %+d: %p", i * 8, (void *)v);
     }
     int hits = 0;
@@ -789,13 +801,13 @@ static int DamageForSpeed(const Tick &tk, float speed)
     return (int)((float)tk.minDamage * (1.0f - t) + (float)tk.maxDamage * t);
 }
 
-// The game's own damage update (RVA 0xd6f690, one argument: the vehicle). From each part's damage it makes a worn
+// The game's own damage update (Build::damageUpdate, RVA 0xd6f690 in the Steam build; one argument: the vehicle). From
+// each part's damage it makes a worn
 // out tire flat or mends a repaired one, sets the parts' effects (a wheel's: 1 when flat), sums the damage
 // (vehicle+0x108, the capacity at +0x10C) and tells the truck's script how much the sum changed (RVA 0xb27760). In
 // the game that shows as the truck card coming up for a few seconds and, for a flat tire, the HUD's wheel icon turning
 // red; damage only written to the wheels' data does neither. The game calls the update right after it changes a
 // part's damage itself (its SetDamage, RVA 0xd6fe00: the value, then this).
-static const uint64_t kDamageUpdateRva = 0xd6f690;
 
 // Deals damage to the wheels. add: every wheel on the ground (byte wheel+0x1A4) takes that much, as far as it has
 // room (one tick; Expeditions: RVA 0xae1dbe in its exe). set >= 0: every wheel's damage becomes that instead (the
@@ -831,7 +843,7 @@ static TickResult DealDamage(uint64_t vehicle, const std::vector<WheelRef> &whee
         }
         if (damage >= r.most) { r.most = damage; r.capacity = capacity; }
     }
-    if (onGameThread && r.hit) ((void (*)(uint64_t))(g_base + kDamageUpdateRva))(vehicle);
+    if (onGameThread && r.hit) ((void (*)(uint64_t))(g_base + g_build->damageUpdate))(vehicle);
     return r;
 }
 
@@ -842,10 +854,10 @@ static TickResult DealDamage(uint64_t vehicle, const std::vector<WheelRef> &whee
 // call at RVA 0xa572c4). The import slot is pointed at ForegroundHook below (data, no code is changed): for that one
 // caller it first deals the damage this mod's thread asked for and runs the game's damage update, on the game's
 // thread and at a point of its frame where the game does the same. Every other caller just gets its answer.
-static const uint64_t kForegroundSlotRva = 0x21be360, kTruckUpdateReturnRva = 0xa57535;
-// From the address of that call's return address to the update's saved first argument: the function keeps it in its
-// caller's home space (entry rsp + 8) and the call sits 0x410 below the entry rsp (8 pushes, a 0x3C8 frame, the call).
-static const uint64_t kTruckUpdateFirstArg = 0x418;
+// The RVAs above are the Steam build's; Build has each build's own (foregroundSlot, truckUpdateReturn).
+// Build::firstArgument is the way from the address of that call's return address to the update's saved first
+// argument: the function keeps it in its caller's home space (entry rsp + 8), and in the Steam build the call sits
+// 0x410 below the entry rsp (8 pushes, a 0x3C8 frame, the call), which makes 0x418.
 struct DamageJob { uint64_t vehicle; int add, set; float speed; ULONGLONG posted; };
 static SRWLOCK g_jobLock = SRWLOCK_INIT;
 static DamageJob g_job = {};        // under g_jobLock, with g_jobResult
@@ -863,7 +875,7 @@ static void OnTruckUpdate(uint64_t returnSlot)
     if (InterlockedExchange(&g_truckUpdateThread, thread) != thread) InterlockedIncrement(&g_truckUpdateThreadChanges);
     if (!g_jobPending) return;
     uint64_t first = 0, vehicle = 0;
-    if (!Read(returnSlot + kTruckUpdateFirstArg, first) || !Read(first + 0x20, vehicle) || !vehicle) return;
+    if (!Read(returnSlot + g_build->firstArgument, first) || !Read(first + 0x20, vehicle) || !vehicle) return;
     InterlockedExchange64(&g_truckUpdateVehicle, (LONG64)vehicle);
     if (!TryAcquireSRWLockExclusive(&g_jobLock)) return; // the mod's thread is posting: next frame
     // only for the truck the game is updating right now, and only while it is the one the mod's thread works on
@@ -883,7 +895,7 @@ static void OnTruckUpdate(uint64_t returnSlot)
 
 static HWND WINAPI ForegroundHook()
 {
-    if ((uint64_t)_ReturnAddress() == g_base + kTruckUpdateReturnRva) OnTruckUpdate((uint64_t)_AddressOfReturnAddress());
+    if ((uint64_t)_ReturnAddress() == g_base + g_build->truckUpdateReturn) OnTruckUpdate((uint64_t)_AddressOfReturnAddress());
     return g_foregroundReal();
 }
 
@@ -895,12 +907,12 @@ static bool HookTruckUpdate()
     BYTE call[6] = {}, head[8] = {};
     int rel = 0;
     void *real = nullptr;
-    void **const slot = (void **)(g_base + kForegroundSlotRva);
+    void **const slot = (void **)(g_base + g_build->foregroundSlot);
     if (g_foregroundReal) return true;
-    if (!Read(g_base + kTruckUpdateReturnRva - 6, call) || call[0] != 0xFF || call[1] != 0x15) return false;
+    if (!Read(g_base + g_build->truckUpdateReturn - 6, call) || call[0] != 0xFF || call[1] != 0x15) return false;
     memcpy(&rel, call + 2, 4);
-    if (kTruckUpdateReturnRva + (int64_t)rel != kForegroundSlotRva) return false;
-    if (!Read(g_base + kDamageUpdateRva, head) || memcmp(head, kUpdateHead, sizeof head)) return false;
+    if (g_build->truckUpdateReturn + (int64_t)rel != g_build->foregroundSlot) return false;
+    if (!Read(g_base + g_build->damageUpdate, head) || memcmp(head, kUpdateHead, sizeof head)) return false;
     MEMORY_BASIC_INFORMATION mi = {};
     if (!Read((uint64_t)slot, real) || !real || !VirtualQuery(real, &mi, sizeof mi) || mi.State != MEM_COMMIT ||
         !(mi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY))) return false;
@@ -1021,7 +1033,7 @@ static void LogWriters(bool onlyNew)
         const LONG bits = w.lastBits;
         memcpy(&last, &bits, 4);
         const uint64_t key = (uint64_t)w.key;
-        const bool inExe = key >= g_base && key < g_base + 0x2e02000;
+        const bool inExe = key >= g_base && key < g_base + g_build->image;
         Log(L"probe: %swriter %s%s %llx, %ld writes, last value %.4f, on thread %lu", onlyNew ? L"new " : L"", w.viaRet ? L"(caller of a setter) " : L"", inExe ? L"exe rva" : L"address",
             inExe ? key - g_base : key, (long)w.count, last, (unsigned long)w.thread);
     }
@@ -1062,7 +1074,7 @@ static void FuelSnapshot()
     auto pointerAt = [&](size_t snap, size_t off) -> uint64_t {
         uint64_t p;
         memcpy(&p, g_fuelSnap[snap].first.data() + off, 8);
-        return p < 0x10000 || p > 0x7FFFFFFFFFFFull || (p & 7) || (p >= g_base && p < g_base + 0x2e02000) || (p >= v && p < v + 0x4000) ? 0 : p;
+        return p < 0x10000 || p > 0x7FFFFFFFFFFFull || (p & 7) || (p >= g_base && p < g_base + g_build->image) || (p >= v && p < v + 0x4000) ? 0 : p;
     };
     if (!add(v, -1, -1, 0x4000)) return;
     for (size_t off = 0; off + 8 <= min(g_fuelSnap[0].first.size(), (size_t)0x2000); off += 8)
@@ -1181,9 +1193,21 @@ static DWORD WINAPI Run(void *)
         return 0;
     }
     const BYTE *image = (const BYTE *)g_base;
-    const DWORD stamp = *(const DWORD *)(image + *(const DWORD *)(image + 0x3C) + 8);
+    const BYTE *header = image + *(const DWORD *)(image + 0x3C);
+    const DWORD stamp = *(const DWORD *)(header + 8), imageSize = *(const DWORD *)(header + 24 + 56);
     Log(L"TirePressure " TP_VERSION L": exe stamp %08lx", stamp);
-    if (stamp != kExeStamp) { Log(L"another game version (built for %08lx): standing down", kExeStamp); return 0; }
+    // only on an exe this mod knows: its addresses are those of that very build
+    const Build *build = nullptr;
+    for (const Build &b : kBuilds) if (b.stamp == stamp && b.image == imageSize) build = &b;
+    if (!build)
+    {
+        std::wstring known;
+        for (const Build &b : kBuilds) known += (known.empty() ? L"" : L"; ") + std::wstring(b.name);
+        Log(L"another game version: standing down. This mod knows: %s.", known.c_str());
+        return 0;
+    }
+    g_build = build;
+    Log(L"game build: %s", g_build->name);
     SettingsDefaults(g_set); // what the settings page shows until the ini is read
     g_reshadeOk = PanelInit(g_self);
     LoadIni();
