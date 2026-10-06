@@ -279,11 +279,11 @@ static void PanelKeyCap(ImDrawList *dl, const PanelFonts &f, ImVec2 c, float u, 
 
 static const char *PanelRating(float m)
 {
-    if (m < 0.95f) return "Poor";
-    if (m < 1.05f) return "Average";
-    if (m < 1.2f) return "Good";
-    if (m < 1.45f) return "Great";
-    return "Excellent";
+    if (m < 0.95f) return "Плохо";
+    if (m < 1.05f) return "Средне";
+    if (m < 1.2f) return "Хорошо";
+    if (m < 1.45f) return "Отлично";
+    return "Великолепно";
 }
 
 // Fuel efficiency against the Normal mode's 7 of 10 segments.
@@ -336,7 +336,7 @@ static void PanelDraw(ImDrawList *dl, const PanelFonts &f, ImVec2 at, float u, f
     // body and title bar
     dl->AddRectFilled(P(0, 0), P(kPanelRefW, kPanelRefH), PanelCol(5, 5, 5, 0.94f * a), 3.0f * u);
     dl->AddRectFilled(P(0, 0), P(kPanelRefW, 112), PanelCol(68, 82, 82, a), 3.0f * u, ImDrawFlags_RoundCornersTop);
-    PanelText(dl, f, kTitle, P(cx, 60), PanelCol(255, 255, 255, a), "Tire Inflation System", 0, u);
+    PanelText(dl, f, kTitle, P(cx, 60), PanelCol(255, 255, 255, a), "Регулировка давления шин", 0, u);
 
     // gauge: light rim and base, a mid band with the marks, a dark face
     const ImVec2 c = P(cx, 444);
@@ -378,7 +378,7 @@ static void PanelDraw(ImDrawList *dl, const PanelFonts &f, ImVec2 at, float u, f
     PanelText(dl, f, kMode, P(cx, 546.5f), PanelCol(255, 255, 255, a), m.title, 0, u);
 
     // fuel efficiency: 10 slanted segments (Normal = 7, the last two of those yellow) and the grade
-    PanelText(dl, f, kHeading, P(cx, 657), PanelCol(250, 250, 250, a), "Fuel efficiency", 0, u);
+    PanelText(dl, f, kHeading, P(cx, 657), PanelCol(250, 250, 250, a), "Расход топлива", 0, u);
     {
         const int segs = PanelFuelSegments(m.fuel), normal = PanelFuelSegments(n.fuel);
         const float top = 711.5f, bottom = 727.5f, slant = 11.0f, wid = 20.5f, pitch = 24.0f, left = 273.5f;
@@ -392,9 +392,9 @@ static void PanelDraw(ImDrawList *dl, const PanelFonts &f, ImVec2 at, float u, f
     }
 
     // traction ratings against Normal, underlined where better
-    PanelText(dl, f, kHeading, P(cx, 811), PanelCol(250, 250, 250, a), "Tire traction", 0, u);
+    PanelText(dl, f, kHeading, P(cx, 811), PanelCol(250, 250, 250, a), "Сцепление шин", 0, u);
     {
-        const struct { const char *label; float v, base; } cols[3] = { { "Ground:", m.ground, n.ground }, { "Asphalt:", m.asphalt, n.asphalt }, { "Mud:", m.mud, n.mud } };
+        const struct { const char *label; float v, base; } cols[3] = { { "Грунт:", m.ground, n.ground }, { "Асфальт:", m.asphalt, n.asphalt }, { "Грязь:", m.mud, n.mud } };
         for (int i = 0; i < 3; i++)
         {
             const float x = cx + (i - 1) * 260.0f;
@@ -413,7 +413,7 @@ static void PanelDraw(ImDrawList *dl, const PanelFonts &f, ImVec2 at, float u, f
     // confirm: the pad's A, or for the keyboard a clock face that empties as the choice confirms itself
     dl->AddRectFilled(P(0, 1016.5f), P(kPanelRefW, 1019.5f), PanelCol(33, 33, 33, a));
     {
-        const float textW = PanelTextWidth(f, kButton, "Confirm", u) / u;
+        const float textW = PanelTextWidth(f, kButton, "Подтвердить", u) / u;
         const float bw = 19.0f + 63.0f + 23.0f + textW + 27.0f, bl = floorf(cx - bw * 0.5f);
         dl->AddRectFilled(P(bl, 1050), P(bl + bw, 1145), PanelCol(20, 20, 20, a), 3.0f * u);
         const ImVec2 ic = P(bl + 19.0f + 31.5f, 1097.5f);
@@ -442,7 +442,7 @@ static void PanelDraw(ImDrawList *dl, const PanelFonts &f, ImVec2 at, float u, f
                 else dl->AddConvexPolyFilled(pts, 34, PanelCol(216, 216, 216, a));
             }
         }
-        PanelText(dl, f, kButton, P(bl + 19.0f + 63.0f + 23.0f, 1096.5f), PanelCol(241, 241, 241, a), "Confirm", -1, u);
+        PanelText(dl, f, kButton, P(bl + 19.0f + 63.0f + 23.0f, 1096.5f), PanelCol(241, 241, 241, a), "Подтвердить", -1, u);
     }
 }
 
@@ -456,8 +456,8 @@ static void PanelWarning(ImDrawList *dl, const PanelFonts &f, ImVec2 at, float u
     auto P = [&](float x, float y) { return ImVec2(x0 + x * u, y0 + y * u); };
     dl->AddRectFilled(P(0, 0), P(kPanelRefW, kPanelWarnH), PanelCol(5, 5, 5, 0.94f * a), 3.0f * u);
     dl->AddRectFilled(P(0, 0), P(12, kPanelWarnH), PanelCol(225, 58, 70, a), 3.0f * u, ImDrawFlags_RoundCornersLeft);
-    PanelText(dl, f, kMode, P(44, 50), PanelCol(255, 255, 255, a), "TIRE DAMAGE", -1, u);
-    PanelText(dl, f, kLabel, P(44, 101), PanelCol(142, 150, 152, a), "Slow down or raise the pressure", -1, u);
+    PanelText(dl, f, kMode, P(44, 50), PanelCol(255, 255, 255, a), "ПОВРЕЖДЕНИЕ ШИН", -1, u);
+    PanelText(dl, f, kLabel, P(44, 101), PanelCol(142, 150, 152, a), "Снизьте скорость или подкачайте шины", -1, u);
     if (wear >= 0)
     {
         char text[8];
