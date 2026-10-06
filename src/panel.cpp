@@ -26,8 +26,8 @@ extern "C" __declspec(dllexport) const char *NAME = "Tire Inflation System";
 extern "C" __declspec(dllexport) const char *DESCRIPTION = "Expeditions' tire inflation system for SnowRunner: the pressure panel of TirePressure.asi.";
 
 PanelView g_view = { 0, kNormal, kNormal, -1, 0, kModeCount };
-PanelMode g_panelModes[kModeCount] = { { "LOW PRESSURE", 1, 1, 1, 1 }, { "REDUCED PRESSURE", 1, 1, 1, 1 }, { "NORMAL PRESSURE", 1, 1, 1, 1 },
-                                       { "INCREASED PRESSURE", 1, 1, 1, 1 } };
+PanelMode g_panelModes[kModeCount] = { { "НИЗКОЕ ДАВЛЕНИЕ", 1, 1, 1, 1 }, { "СНИЖЕННОЕ ДАВЛЕНИЕ", 1, 1, 1, 1 }, { "СТАНДАРТНОЕ ДАВЛЕНИЕ", 1, 1, 1, 1 },
+                                       { "ПОВЫШЕННОЕ ДАВЛЕНИЕ", 1, 1, 1, 1 } };
 float g_panelScale = 1.0f;
 char g_panelKeyName[16] = "F3";
 int g_panelConfirmMs = 2000;
